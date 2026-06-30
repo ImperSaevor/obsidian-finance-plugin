@@ -1,0 +1,9 @@
+﻿{
+  "id": "obsidian-finance-plugin",
+  "name": "Finance",
+  "version": "1.0.0",
+  "minAppVersion": "1.0.0",
+  "description": "Gérez vos finances : comptes, transactions, prévisions, graphiques et catégories.",
+  "author": "Finance Plugin",
+  "isDesktopOnly": false
+}

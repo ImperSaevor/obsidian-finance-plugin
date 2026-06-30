@@ -1,0 +1,35 @@
+{
+	"name": "obsidian-finance-plugin",
+	"version": "1.0.0",
+	"description": "Plugin Obsidian pour gérer ses finances personnelles",
+	"main": "main.js",
+	"scripts": {
+		"dev": "node esbuild.config.mjs",
+		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+		"build:dev": "node esbuild.config.mjs dev-once",
+		"debug": "node scripts/launch-obsidian.mjs",
+		"setup-dev": "node scripts/setup-dev-vault.mjs",
+		"sync": "node scripts/sync-to-vault.mjs",
+		"test": "vitest run --passWithNoTests",
+		"lint": "eslint src main.ts --max-warnings 0",
+		"version": "node version-bump.mjs && git add manifest.json versions.json"
+	},
+	"keywords": [
+		"obsidian",
+		"finance",
+		"budget"
+	],
+	"author": "",
+	"license": "MIT",
+	"devDependencies": {
+		"@types/node": "^16.11.6",
+		"@typescript-eslint/eslint-plugin": "5.29.0",
+		"@typescript-eslint/parser": "5.29.0",
+		"builtin-modules": "3.3.0",
+		"esbuild": "0.17.3",
+		"obsidian": "latest",
+		"tslib": "2.4.0",
+		"typescript": "4.7.4",
+		"vitest": "^1.6.1"
+	}
+}
