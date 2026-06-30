@@ -432,30 +432,32 @@ export class FinanceStore {
 	async deleteTransaction(id: string): Promise<void> {
 		const settings = this.getSettings();
 		const tx = this.data.transactions.find(t => t.id === id);
-		if (tx) {
+		if (!tx) return;
+
+		try {
 			await deleteTransactionNote(this.app, tx, settings, this.data.transactions);
 			if (tx.notePath) {
 				await removeTransactionFromNote(this.app, tx);
 			}
+		} catch (error) {
+			console.warn('[Finance] Nettoyage des notes ignoré lors de la suppression', error);
 		}
-		if (tx?.linkedTransactionId) {
-			this.data.transactions = this.data.transactions.filter(
-				t => t.id !== id && t.id !== tx.linkedTransactionId,
-			);
-		} else {
-			this.data.transactions = this.data.transactions.filter(t => t.id !== id);
-		}
+
+		const linkedId = tx.linkedTransactionId;
+		this.data.transactions = this.data.transactions.filter(
+			t => t.id !== id && t.id !== linkedId,
+		);
 		this.recalculateDerived();
 		await this.save();
 	}
 
 	async deleteTransactions(ids: string[]): Promise<number> {
+		const unique = [...new Set(ids)];
 		let deleted = 0;
-		for (const id of ids) {
-			if (this.getTransaction(id)) {
-				await this.deleteTransaction(id);
-				deleted++;
-			}
+		for (const id of unique) {
+			if (!this.getTransaction(id)) continue;
+			await this.deleteTransaction(id);
+			deleted++;
 		}
 		return deleted;
 	}

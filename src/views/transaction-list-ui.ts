@@ -4,6 +4,8 @@ import type { FinancePluginSettings } from '../settings';
 import { CalculatedTransactionModal } from '../modals/calculated-transaction-modal';
 import { DuplicateTransactionModal } from '../modals/duplicate-transaction-modal';
 import { TransactionModal } from '../modals/transaction-modal';
+import { createActionBar, renderActionButton } from '../utils/action-buttons';
+import { confirmAction } from '../utils/confirm';
 import { createCollapse } from '../utils/collapse';
 import { formatCurrency, formatDate } from '../utils/format';
 import { openNoteAtPath, renderObsidianNoteLink } from '../utils/note-links';
@@ -70,14 +72,15 @@ function renderBulkToolbar(
 	bar.createSpan({ text: `${selectedIds.size} sélectionnée(s)` });
 
 	bar.createEl('button', { text: 'Supprimer' })
-		.addEventListener('click', async () => {
-			const { confirmAction } = await import('../utils/confirm');
-			if (await confirmAction(ctx.plugin.app, 'Supprimer', `Supprimer ${selectedIds.size} transaction(s) ?`)) {
-				await ctx.plugin.store.deleteTransactions([...selectedIds]);
-				selectedIds.clear();
-				ctx.onSelectionChange?.(selectedIds);
-				ctx.onRefresh();
-			}
+		.addEventListener('click', () => {
+			void (async () => {
+				if (await confirmAction(ctx.plugin.app, 'Supprimer', `Supprimer ${selectedIds.size} transaction(s) ?`)) {
+					await ctx.plugin.store.deleteTransactions([...selectedIds]);
+					selectedIds.clear();
+					ctx.onSelectionChange?.(selectedIds);
+					ctx.onRefresh();
+				}
+			})();
 		});
 
 	bar.createEl('button', { text: 'Sans catégorie' })
@@ -284,6 +287,50 @@ function renderCompactTransactionItems(
 	}
 }
 
+function getTransactionNotePathForRow(tx: Transaction, ctx: TransactionListContext): string | undefined {
+	if (ctx.settings.transactionsAsNotes) {
+		return getTransactionNotePath(tx, ctx.settings, ctx.allTransactions);
+	}
+	return tx.notePath;
+}
+
+function renderTransactionActions(
+	actionsTd: HTMLElement,
+	tx: Transaction,
+	ctx: TransactionListContext,
+): void {
+	const { settings, onRefresh, plugin } = ctx;
+	const store = plugin.store;
+	const bar = createActionBar(actionsTd);
+
+	renderActionButton(bar, '✎', 'Modifier', () => {
+		new TransactionModal(plugin.app, store, settings, tx, null, onRefresh).open();
+	});
+
+	if (!ctx.compact) {
+		renderActionButton(bar, '∑', 'Transaction calculée', tx.type !== 'transfer'
+			? () => new CalculatedTransactionModal(plugin.app, store, settings, [tx], onRefresh).open()
+			: null);
+
+		renderActionButton(bar, '⎘', 'Dupliquer', () => {
+			new DuplicateTransactionModal(plugin.app, store, tx, onRefresh).open();
+		});
+
+		const notePath = getTransactionNotePathForRow(tx, ctx);
+		renderActionButton(bar, '📄', 'Ouvrir la note', notePath
+			? () => openNoteAtPath(plugin.app, notePath)
+			: null);
+	}
+
+	renderActionButton(bar, '✕', 'Supprimer', () => {
+		void (async () => {
+			if (!await confirmAction(plugin.app, 'Supprimer', `Supprimer « ${tx.description} » ?`)) return;
+			await store.deleteTransaction(tx.id);
+			onRefresh();
+		})();
+	}, { warning: true });
+}
+
 function renderTransactionRow(
 	row: HTMLElement,
 	tx: Transaction,
@@ -292,7 +339,6 @@ function renderTransactionRow(
 	const { accounts, categories, allTransactions, settings, currency, showAccountColumn, onRefresh, plugin } = ctx;
 	const account = accounts.find(a => a.id === tx.accountId);
 	const category = categories.find(c => c.id === tx.categoryId);
-	const store = plugin.store;
 
 	if (ctx.enableBulk && ctx.selectedIds) {
 		const checkTd = row.createEl('td', { cls: 'finance-check-col' });
@@ -305,24 +351,25 @@ function renderTransactionRow(
 		});
 	}
 
-	row.createEl('td', { text: formatDate(tx.date, settings.dateFormat) });
-	const descTd = row.createEl('td');
+	row.createEl('td', { cls: 'finance-date-col', text: formatDate(tx.date, settings.dateFormat) });
+	const descTd = row.createEl('td', { cls: 'finance-desc-col' });
 	renderTransactionOpenLink(descTd.createSpan({ cls: 'finance-tx-desc' }), plugin, tx, onRefresh);
 	if (tx.useCalculatedAmount && tx.calculationLinks?.length) {
 		descTd.createSpan({ text: ' 🔗', cls: 'finance-calc-icon' });
 	}
-	if (tx.notePath) {
+	if (ctx.compact && tx.notePath) {
 		descTd.createSpan({ text: ' ' });
-		const noteSpan = descTd.createSpan({ cls: 'finance-tx-note-inline' });
-		renderObsidianNoteLink(noteSpan, plugin.app, tx.notePath);
+		renderObsidianNoteLink(descTd.createSpan({ cls: 'finance-tx-note-inline' }), plugin.app, tx.notePath);
 	}
 
 	if (!ctx.compact) {
 		const noteTd = row.createEl('td', { cls: 'finance-note-cell' });
-		if (ctx.settings.transactionsAsNotes) {
-			renderObsidianNoteLink(noteTd, plugin.app, getTransactionNotePath(tx, ctx.settings, ctx.allTransactions));
+		const notePath = getTransactionNotePathForRow(tx, ctx);
+		if (notePath) {
+			renderObsidianNoteLink(noteTd, plugin.app, notePath);
 		} else {
-			renderObsidianNoteLink(noteTd, plugin.app, tx.notePath);
+			noteTd.setText('—');
+			noteTd.addClass('finance-cell-empty');
 		}
 
 		const linksTd = row.createEl('td', { cls: 'finance-calc-formula' });
@@ -333,53 +380,29 @@ function renderTransactionRow(
 			linksTd.setText(src ? `← ${src.description}` : '—');
 		} else {
 			linksTd.setText('—');
+			linksTd.addClass('finance-cell-empty');
 		}
 	}
 
 	if (showAccountColumn) {
-		row.createEl('td', { text: account?.name ?? '—' });
+		row.createEl('td', { text: account?.name ?? '—', cls: account ? '' : 'finance-cell-empty' });
 	}
 
 	if (!ctx.compact) {
-		row.createEl('td', { text: category?.name ?? '—' });
-		row.createEl('td', { text: tx.tags.join(', ') || '—' });
+		row.createEl('td', { text: category?.name ?? '—', cls: category ? '' : 'finance-cell-empty' });
+		const tagsText = tx.tags.join(', ') || '—';
+		row.createEl('td', { text: tagsText, cls: tx.tags.length ? 'finance-tags-col' : 'finance-cell-empty' });
 		row.createEl('td', { text: tx.type, cls: 'finance-tx-type' });
 	}
 
+	const amountCls = `finance-amount-col ${tx.amount >= 0 ? 'positive' : 'negative'}`;
 	row.createEl('td', {
 		text: formatCurrency(tx.amount, account?.currency ?? currency, settings.dateFormat),
-		cls: tx.amount >= 0 ? 'positive' : 'negative',
+		cls: amountCls,
 	});
 
 	const actionsTd = row.createEl('td', { cls: 'finance-row-actions' });
-	actionsTd.createEl('button', { text: '✎' })
-		.addEventListener('click', () => {
-			new TransactionModal(plugin.app, store, settings, tx, null, onRefresh).open();
-		});
-	if (!ctx.compact) {
-		const calcBtn = actionsTd.createEl('button', { text: '∑' });
-		calcBtn.setAttr('title', 'Calculer');
-		calcBtn.addEventListener('click', () => {
-			new CalculatedTransactionModal(plugin.app, store, settings, [tx], onRefresh).open();
-		});
-		const dupBtn = actionsTd.createEl('button', { text: '⎘' });
-		dupBtn.setAttr('title', 'Dupliquer');
-		dupBtn.addEventListener('click', () => {
-			new DuplicateTransactionModal(plugin.app, store, tx, onRefresh).open();
-		});
-		if (tx.notePath) {
-			const noteBtn = actionsTd.createEl('button', { text: '📄' });
-			noteBtn.setAttr('title', 'Ouvrir la note liée');
-			noteBtn.addEventListener('click', () => openNoteAtPath(plugin.app, tx.notePath!));
-		}
-	}
-	actionsTd.createEl('button', { text: '✕', cls: 'mod-warning' })
-		.addEventListener('click', async () => {
-			const { confirmAction } = await import('../utils/confirm');
-			if (!await confirmAction(plugin.app, 'Supprimer', `Supprimer « ${tx.description} » ?`)) return;
-			await store.deleteTransaction(tx.id);
-			onRefresh();
-		});
+	renderTransactionActions(actionsTd, tx, ctx);
 }
 
 export function renderTransactionTable(
@@ -402,7 +425,8 @@ export function renderTransactionTable(
 		? transactions.slice(page * pageSize, (page + 1) * pageSize)
 		: transactions;
 
-	const table = parent.createEl('table', { cls: 'finance-table' });
+	const wrap = parent.createDiv({ cls: 'finance-table-wrap' });
+	const table = wrap.createEl('table', { cls: 'finance-table' });
 	const headRow = table.createEl('thead').createEl('tr');
 	const cols: string[] = [];
 	if (ctx.enableBulk) cols.push('');
@@ -410,8 +434,13 @@ export function renderTransactionTable(
 	if (!ctx.compact) cols.push('Note', 'Liens');
 	if (ctx.showAccountColumn) cols.push('Compte');
 	if (!ctx.compact) cols.push('Catégorie', 'Tags', 'Type');
-	cols.push('Montant', '');
-	for (const col of cols) headRow.createEl('th', { text: col });
+	cols.push('Montant', 'Actions');
+	for (const col of cols) {
+		const th = headRow.createEl('th', { text: col });
+		if (col === 'Actions') th.addClass('finance-actions-col');
+		if (col === 'Montant') th.addClass('finance-amount-col');
+		if (col === '') th.addClass('finance-check-col');
+	}
 
 	const tbody = table.createEl('tbody');
 	for (const tx of paged) {

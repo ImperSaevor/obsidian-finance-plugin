@@ -193,7 +193,13 @@ export class FinanceView extends ItemView {
 				);
 				break;
 			case 'forecasts':
-				void import('./forecasts-renderer').then(m => m.renderForecastsTab(content, this.plugin, () => this.refresh()));
+				void import('./forecasts-renderer').then(m => m.renderForecastsTab(
+					content,
+					this.plugin,
+					() => this.refresh(),
+					this.selectedAccountId,
+					(id) => { this.selectedAccountId = id; this.saveUi({ selectedAccountId: id }); this.renderActiveTab(); },
+				));
 				break;
 			case 'charts':
 				renderChartsTab(
