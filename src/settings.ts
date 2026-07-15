@@ -5,6 +5,7 @@ import { DEFAULT_TX_FILTER } from './utils/transaction-filters';
 export interface FinanceUiState {
 	activeTab: FinanceTabId;
 	selectedAccountId: string | null;
+	overviewAccountId: string | null;
 	noteAccountId: string | null;
 	txFilterState: TransactionFilterState;
 	overviewTxFilterState: TransactionFilterState;
@@ -31,6 +32,7 @@ export interface FinancePluginSettings {
 export const DEFAULT_UI_STATE: FinanceUiState = {
 	activeTab: 'overview',
 	selectedAccountId: null,
+	overviewAccountId: null,
 	noteAccountId: null,
 	txFilterState: { ...DEFAULT_TX_FILTER },
 	overviewTxFilterState: { ...DEFAULT_TX_FILTER },

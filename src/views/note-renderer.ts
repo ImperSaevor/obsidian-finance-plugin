@@ -1,6 +1,7 @@
 ﻿import { MarkdownRenderer, normalizePath, Notice, TFile } from 'obsidian';
 import type FinancePlugin from '../../main';
 import { generateFinanceNote } from '../utils/note-generator';
+import { ensureVaultFolder } from '../utils/vault-folders';
 
 export async function renderFinanceNoteTab(
 	el: HTMLElement,
@@ -52,10 +53,7 @@ export async function exportFinanceNote(plugin: FinancePlugin, accountId: string
 		await plugin.app.workspace.getLeaf(false)?.openFile(existing);
 		new Notice(`Note mise à jour : ${fileName}`);
 	} else {
-		const folderExists = plugin.app.vault.getAbstractFileByPath(folder);
-		if (!folderExists) {
-			await plugin.app.vault.createFolder(folder);
-		}
+		await ensureVaultFolder(plugin.app, folder);
 		const file = await plugin.app.vault.create(filePath, content);
 		await plugin.app.workspace.getLeaf(false)?.openFile(file);
 		new Notice(`Note créée : ${fileName}`);

@@ -119,7 +119,7 @@ export function describeCalculation(
 			parts.push(`+ ${factor}% de ${label(link.transactionId)}`);
 		} else {
 			let part = `${opSymbol[link.operator]} ${label(link.transactionId)}`;
-			if (link.factor != null && link.operator !== 'percent_of') {
+			if (link.factor != null) {
 				part += ` × ${link.factor}`;
 			}
 			parts.push(part);

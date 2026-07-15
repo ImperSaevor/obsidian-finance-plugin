@@ -1,7 +1,8 @@
 ﻿import type { FinanceStore } from '../store/finance-store';
 import type { FinancePluginSettings } from '../settings';
 import type { Account } from '../types';
-import { getAccountBalance, getCategoryBreakdown } from './calculations';
+import { getAccountBalance, getCategoryBreakdown, getAccountBalanceReconciliation } from './calculations';
+import { normalizeAccountSnapshots } from './reconciliation';
 import { getCategoriesForAccount } from './categories';
 import { formatCurrency, formatDate } from './format';
 import { notePathToWikilink } from './note-links';
@@ -50,6 +51,7 @@ function generateAccountSection(
 	monthStart: string,
 ): string[] {
 	const balance = getAccountBalance(account.id, transactions, account.initialBalance);
+	const rec = getAccountBalanceReconciliation(account, transactions);
 	const accountTx = transactions.filter(t => t.accountId === account.id);
 	const monthTx = accountTx.filter(t => t.date >= monthStart);
 	const income = monthTx.filter(t => t.amount > 0 && t.type !== 'transfer').reduce((s, t) => s + t.amount, 0);
@@ -62,11 +64,32 @@ function generateAccountSection(
 		'',
 		`| Indicateur | Montant |`,
 		`| --- | --- |`,
-		`| Solde | ${formatCurrency(balance, account.currency, settings.dateFormat)} |`,
+		`| Solde calculé | ${formatCurrency(balance, account.currency, settings.dateFormat)} |`,
+	];
+
+	if (rec.hasActual) {
+		lines.push(`| Solde réel | ${formatCurrency(rec.actual!, account.currency, settings.dateFormat)} |`);
+		if (rec.isReconciled) {
+			lines.push('| Écart | Aucun |');
+		} else {
+			const sign = rec.delta! > 0 ? '+' : '';
+			lines.push(`| Écart | ${sign}${formatCurrency(rec.delta!, account.currency, settings.dateFormat)} |`);
+		}
+	}
+
+	const snapshots = normalizeAccountSnapshots(account);
+	if (snapshots.length > 0) {
+		lines.push('', '### Historique des soldes réels', '', '| Date | Réel |', '| --- | --- |');
+		for (const snap of snapshots) {
+			lines.push(`| ${formatDate(snap.date, settings.dateFormat)} | ${formatCurrency(snap.actualBalance, account.currency, settings.dateFormat)} |`);
+		}
+	}
+
+	lines.push(
 		`| Revenus (mois) | ${formatCurrency(income, account.currency, settings.dateFormat)} |`,
 		`| Dépenses (mois) | ${formatCurrency(expenses, account.currency, settings.dateFormat)} |`,
 		'',
-	];
+	);
 
 	if (breakdown.length > 0) {
 		lines.push('### Dépenses par catégorie', '');

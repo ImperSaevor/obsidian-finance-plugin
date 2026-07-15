@@ -317,6 +317,168 @@ function formatAxisValue(value: number): string {
 	return value.toFixed(0);
 }
 
+export interface LineSeries {
+	label: string;
+	values: (number | null)[];
+	color: string;
+	dashed?: boolean;
+}
+
+function drawLinePath(
+	ctx: CanvasRenderingContext2D,
+	points: { x: number; y: number }[],
+	dashed = false,
+): void {
+	if (points.length === 0) return;
+	ctx.beginPath();
+	if (dashed) ctx.setLineDash([6, 4]);
+	for (let i = 0; i < points.length; i++) {
+		if (i === 0) ctx.moveTo(points[i].x, points[i].y);
+		else ctx.lineTo(points[i].x, points[i].y);
+	}
+	ctx.stroke();
+	ctx.setLineDash([]);
+}
+
+export function drawMultiLineChart(
+	canvas: HTMLCanvasElement,
+	labels: string[],
+	series: LineSeries[],
+): void {
+	const width = getChartWidth(canvas);
+	const numericValues = series.flatMap(s => s.values.filter((v): v is number => v !== null));
+	if (!width || labels.length === 0 || numericValues.length === 0) return;
+
+	const ctx = setupCanvas(canvas, width, 260);
+	if (!ctx) return;
+
+	const height = 260;
+	const theme = getThemeColors(canvas);
+	const padding = { top: 36, right: 24, bottom: 40, left: 64 };
+	const chartW = width - padding.left - padding.right;
+	const chartH = height - padding.top - padding.bottom;
+
+	const minVal = Math.min(...numericValues);
+	const maxVal = Math.max(...numericValues);
+	const range = maxVal - minVal || 1;
+	const gridSteps = 4;
+
+	drawHorizontalGrid(ctx, padding, chartW, chartH, gridSteps, theme.border);
+
+	ctx.strokeStyle = theme.textFaint;
+	ctx.lineWidth = 1;
+	ctx.beginPath();
+	ctx.moveTo(padding.left, padding.top);
+	ctx.lineTo(padding.left, padding.top + chartH);
+	ctx.lineTo(padding.left + chartW, padding.top + chartH);
+	ctx.stroke();
+
+	ctx.fillStyle = theme.textMuted;
+	ctx.font = '10px var(--font-interface, sans-serif)';
+	ctx.textAlign = 'right';
+	ctx.textBaseline = 'middle';
+	for (let i = 0; i <= gridSteps; i++) {
+		const val = maxVal - (i / gridSteps) * range;
+		const y = padding.top + (i / gridSteps) * chartH;
+		ctx.fillText(formatAxisValue(val), padding.left - 8, y);
+	}
+
+	for (const line of series) {
+		const points: { x: number; y: number }[] = [];
+		for (let i = 0; i < labels.length; i++) {
+			const val = line.values[i];
+			if (val === null) continue;
+			const x = padding.left + (i / Math.max(labels.length - 1, 1)) * chartW;
+			const y = padding.top + chartH - ((val - minVal) / range) * chartH;
+			points.push({ x, y });
+		}
+
+		ctx.strokeStyle = line.color;
+		ctx.lineWidth = line.dashed ? 2 : 2.5;
+		drawLinePath(ctx, points, line.dashed);
+
+		for (const p of points) {
+			ctx.beginPath();
+			ctx.arc(p.x, p.y, line.dashed ? 4 : 3.5, 0, 2 * Math.PI);
+			ctx.fillStyle = theme.background;
+			ctx.fill();
+			ctx.strokeStyle = line.color;
+			ctx.lineWidth = 2;
+			ctx.stroke();
+		}
+	}
+
+	ctx.fillStyle = theme.textMuted;
+	ctx.textAlign = 'center';
+	ctx.textBaseline = 'top';
+	const step = Math.max(1, Math.floor(labels.length / 6));
+	for (let i = 0; i < labels.length; i += step) {
+		const x = padding.left + (i / Math.max(labels.length - 1, 1)) * chartW;
+		const label = labels[i].length >= 7 ? labels[i].slice(5) : labels[i];
+		ctx.fillText(label, x, padding.top + chartH + 8);
+	}
+
+	ctx.textAlign = 'left';
+	ctx.textBaseline = 'top';
+	let legendX = padding.left;
+	for (const line of series) {
+		ctx.fillStyle = line.color;
+		ctx.fillRect(legendX, 10, 10, 10);
+		ctx.fillStyle = theme.textMuted;
+		ctx.fillText(line.label, legendX + 14, 9);
+		legendX += ctx.measureText(line.label).width + 34;
+	}
+}
+
+export function drawDeltaBarChart(
+	canvas: HTMLCanvasElement,
+	labels: string[],
+	deltas: number[],
+): void {
+	const width = getChartWidth(canvas);
+	if (!width || deltas.length === 0) return;
+
+	const ctx = setupCanvas(canvas, width, 180);
+	if (!ctx) return;
+
+	const height = 180;
+	const theme = getThemeColors(canvas);
+	const padding = { top: 28, right: 20, bottom: 40, left: 56 };
+	const chartW = width - padding.left - padding.right;
+	const chartH = height - padding.top - padding.bottom;
+	const maxAbs = Math.max(...deltas.map(Math.abs), 1);
+	const zeroY = padding.top + chartH / 2;
+	const gap = Math.min(8, Math.max(2, chartW / deltas.length / 4));
+	const barWidth = Math.max(4, (chartW - gap * (deltas.length - 1)) / deltas.length);
+
+	drawHorizontalGrid(ctx, padding, chartW, chartH, 2, theme.border);
+
+	ctx.strokeStyle = theme.textFaint;
+	ctx.beginPath();
+	ctx.moveTo(padding.left, zeroY);
+	ctx.lineTo(padding.left + chartW, zeroY);
+	ctx.stroke();
+
+	for (let i = 0; i < deltas.length; i++) {
+		const delta = deltas[i];
+		const barH = (Math.abs(delta) / maxAbs) * (chartH / 2 - 8);
+		const x = padding.left + i * (barWidth + gap);
+		const y = delta >= 0 ? zeroY - barH : zeroY;
+		ctx.fillStyle = delta >= 0 ? '#51cf66' : '#ff6b6b';
+		ctx.fillRect(x, y, barWidth, Math.max(2, barH));
+
+		ctx.fillStyle = theme.textMuted;
+		ctx.font = '9px var(--font-interface, sans-serif)';
+		ctx.textAlign = 'center';
+		ctx.fillText(labels[i].slice(5), x + barWidth / 2, padding.top + chartH + 8);
+	}
+
+	ctx.fillStyle = theme.textMuted;
+	ctx.font = '10px var(--font-interface, sans-serif)';
+	ctx.textAlign = 'left';
+	ctx.fillText('Écarts (réel − calculé)', padding.left, 8);
+}
+
 export function drawLineChart(
 	canvas: HTMLCanvasElement,
 	labels: string[],

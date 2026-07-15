@@ -522,6 +522,145 @@
 	font-weight: 600;
 }
 
+.finance-overview-stat-sub {
+	margin-top: 6px;
+	font-size: 0.8em;
+	line-height: 1.35;
+	color: var(--text-muted);
+}
+
+.finance-reconcile-block {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+	margin-bottom: 6px;
+}
+
+.finance-reconcile-line {
+	font-size: 0.9em;
+}
+
+.finance-reconcile-muted {
+	color: var(--text-muted);
+	font-style: italic;
+}
+
+.finance-reconcile-delta {
+	font-weight: 600;
+}
+
+.finance-reconcile-ok {
+	color: var(--text-success);
+}
+
+.finance-reconcile-warn {
+	color: var(--text-warning);
+}
+
+.finance-reconcile-summary {
+	margin-bottom: 12px;
+	font-size: 0.9em;
+	font-weight: 500;
+}
+
+.finance-reconcile-preview {
+	margin: 8px 0 12px;
+	padding: 10px 12px;
+	background: var(--background-primary);
+	border-radius: 6px;
+	border: 1px solid var(--background-modifier-border);
+}
+
+.finance-reconcile-summary-panel {
+	margin-bottom: 16px;
+}
+
+.finance-reconcile-chart {
+	min-height: 260px;
+}
+
+.finance-reconcile-delta-chart {
+	min-height: 180px;
+	margin-top: 12px;
+}
+
+.finance-reconcile-table {
+	margin-top: 8px;
+}
+
+.finance-findings-list {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.finance-finding {
+	padding: 10px 12px;
+	border-radius: 6px;
+	border-left: 3px solid var(--background-modifier-border);
+	background: var(--background-primary);
+}
+
+.finance-finding--warning {
+	border-left-color: var(--text-warning);
+}
+
+.finance-finding--error {
+	border-left-color: var(--text-error);
+}
+
+.finance-finding--info {
+	border-left-color: var(--interactive-accent);
+}
+
+.finance-finding-title {
+	font-weight: 600;
+	margin-bottom: 4px;
+}
+
+.finance-finding-desc {
+	font-size: 0.9em;
+	color: var(--text-muted);
+	line-height: 1.4;
+}
+
+.finance-finding-tx {
+	margin-top: 8px;
+	display: flex;
+	flex-wrap: wrap;
+	gap: 6px;
+	align-items: center;
+}
+
+.finance-finding-tx-label {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.finance-finding-chip {
+	font-size: 0.8em;
+	padding: 2px 8px;
+	border-radius: 4px;
+	background: var(--background-modifier-hover);
+	border: 1px solid var(--background-modifier-border);
+	cursor: pointer;
+}
+
+.finance-finding-chip:hover {
+	background: var(--background-modifier-active-hover);
+}
+
+.finance-finding-more {
+	font-size: 0.85em;
+	color: var(--text-muted);
+}
+
+.finance-modal-subtitle {
+	color: var(--text-muted);
+	margin-top: -8px;
+	margin-bottom: 12px;
+}
+
 .finance-overview-chart {
 	margin-top: 8px;
 }

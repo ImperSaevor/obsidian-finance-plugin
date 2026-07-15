@@ -4,6 +4,7 @@ import type { Account, Category, Transaction } from '../types';
 import type { FinanceStore } from '../store/finance-store';
 import { formatCurrency, formatDate } from './format';
 import { FINANCE_TX_LINK_PREFIX, FINANCE_TX_MARKER_PREFIX } from './transaction-links';
+import { ensureVaultFolder } from './vault-folders';
 
 const NOTE_SECTION = '## Finances liées';
 const MAX_NOTE_BASE_LENGTH = 120;
@@ -134,13 +135,7 @@ export async function ensureTransactionNotesFolder(
 	app: App,
 	settings: FinancePluginSettings,
 ): Promise<void> {
-	const folder = getNotesFolder(settings);
-	if (await app.vault.adapter.exists(folder)) return;
-	try {
-		await app.vault.createFolder(folder);
-	} catch {
-		if (!(await app.vault.adapter.exists(folder))) throw new Error(`Impossible de créer ${folder}`);
-	}
+	await ensureVaultFolder(app, getNotesFolder(settings));
 }
 
 export async function syncTransactionNote(

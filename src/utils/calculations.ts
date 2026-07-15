@@ -1,4 +1,9 @@
 ﻿import type { Account, Category, Forecast, Transaction } from '../types';
+import {
+	getLatestAccountSnapshot,
+	normalizeAccountSnapshots,
+	RECONCILE_EPSILON,
+} from './reconciliation';
 
 export function getAccountBalance(accountId: string, transactions: Transaction[], initialBalance: number): number {
 	let balance = initialBalance;
@@ -11,6 +16,38 @@ export function getAccountBalance(accountId: string, transactions: Transaction[]
 		}
 	}
 	return balance;
+}
+
+export interface AccountBalanceReconciliation {
+	calculated: number;
+	actual?: number;
+	delta?: number;
+	hasActual: boolean;
+	isReconciled: boolean;
+}
+
+export function getAccountBalanceReconciliation(
+	account: Account,
+	transactions: Transaction[],
+): AccountBalanceReconciliation {
+	const calculated = getAccountBalance(account.id, transactions, account.initialBalance);
+	const latest = getLatestAccountSnapshot(account);
+	const hasActual = latest !== undefined;
+	const actual = latest?.actualBalance;
+	const delta = hasActual ? actual! - calculated : undefined;
+	const isReconciled = delta !== undefined && Math.abs(delta) < RECONCILE_EPSILON;
+	return { calculated, actual, delta, hasActual, isReconciled };
+}
+
+export function countUnreconciledAccounts(accounts: Account[], transactions: Transaction[]): number {
+	return accounts.filter(a => {
+		const r = getAccountBalanceReconciliation(a, transactions);
+		return r.hasActual && !r.isReconciled;
+	}).length;
+}
+
+export function getAccountSnapshotCount(account: Account): number {
+	return normalizeAccountSnapshots(account).length;
 }
 
 export interface CategoryBreakdown {

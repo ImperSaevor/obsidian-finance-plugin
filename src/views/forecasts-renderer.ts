@@ -5,6 +5,7 @@ import {
 	getForecastOccurrences,
 	getProjectedBalance,
 } from '../utils/calculations';
+import { renderAccountReconciliationBlock } from '../utils/account-reconciliation-ui';
 import { createActionBar, renderActionButton } from '../utils/action-buttons';
 import { confirmAction } from '../utils/confirm';
 import { createCollapse } from '../utils/collapse';
@@ -111,13 +112,14 @@ export function renderForecastsTab(
 		card.style.borderLeftColor = account.color;
 		card.createEl('h4', { text: account.name });
 		card.createEl('div', {
-			text: `Actuel : ${formatCurrency(current, account.currency, settings.dateFormat)}`,
+			text: `Calculé : ${formatCurrency(current, account.currency, settings.dateFormat)}`,
 			cls: 'finance-proj-current',
 		});
 		card.createEl('div', {
 			text: `Prévu : ${formatCurrency(projected, account.currency, settings.dateFormat)}`,
 			cls: `finance-balance ${projected >= 0 ? 'positive' : 'negative'}`,
 		});
+		renderAccountReconciliationBlock(card, account, store.getTransactions(), settings);
 	}
 
 	if (selectedAccountId) {

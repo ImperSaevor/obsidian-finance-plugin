@@ -20,12 +20,24 @@ export interface TransactionCalcLink {
 	useAbsolute?: boolean;
 }
 
+export interface AccountBalanceSnapshot {
+	id: string;
+	/** Date du relevé (YYYY-MM-DD) */
+	date: string;
+	actualBalance: number;
+	note?: string;
+}
+
 export interface Account {
 	id: string;
 	name: string;
 	type: AccountType;
 	currency: string;
 	initialBalance: number;
+	/** Dernière saisie réelle (miroir du dernier snapshot) */
+	actualBalance?: number;
+	/** Historique des soldes réels saisis */
+	balanceSnapshots?: AccountBalanceSnapshot[];
 	color: string;
 	createdAt: string;
 }
@@ -106,7 +118,7 @@ export interface FinanceData {
 }
 
 export const EMPTY_FINANCE_DATA: FinanceData = {
-	dataVersion: 2,
+	dataVersion: 3,
 	accounts: [],
 	categories: [],
 	transactions: [],
@@ -122,6 +134,7 @@ export type FinanceTabId =
 	| 'recurring'
 	| 'budgets'
 	| 'forecasts'
+	| 'reconciliation'
 	| 'charts'
 	| 'categories'
 	| 'note';

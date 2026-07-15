@@ -5,6 +5,8 @@ import { getRecurringDueDates } from '../src/utils/recurring';
 import { validateAndRepairFinanceData } from '../src/utils/data-validation';
 import { EMPTY_FINANCE_DATA } from '../src/types';
 import { sanitizeNoteBaseName } from '../src/utils/note-names';
+import { getAccountBalanceReconciliation } from '../src/utils/calculations';
+import { analyzeReconciliationGaps } from '../src/utils/reconciliation';
 
 describe('parseCsvTransactions', () => {
 	it('parse une ligne CSV standard', () => {
@@ -60,5 +62,55 @@ describe('validateAndRepairFinanceData', () => {
 describe('sanitizeNoteBaseName', () => {
 	it('nettoie les caractères invalides', () => {
 		expect(sanitizeNoteBaseName('Courses / super')).toBe('Courses - super');
+	});
+});
+
+describe('getAccountBalanceReconciliation', () => {
+	it('calcule l\'écart entre réel et calculé', () => {
+		const account = {
+			id: 'a1',
+			name: 'Courant',
+			type: 'checking' as const,
+			currency: 'EUR',
+			initialBalance: 100,
+			balanceSnapshots: [{
+				id: 's1',
+				date: '2024-06-01',
+				actualBalance: 150,
+			}],
+			color: '#000',
+			createdAt: '',
+		};
+		const transactions = [{
+			id: 't1', accountId: 'a1', date: '2024-01-01', amount: -20,
+			description: 'x', tags: [], type: 'expense' as const,
+		}];
+		const rec = getAccountBalanceReconciliation(account, transactions);
+		expect(rec.calculated).toBe(80);
+		expect(rec.actual).toBe(150);
+		expect(rec.delta).toBe(70);
+		expect(rec.isReconciled).toBe(false);
+	});
+});
+
+describe('analyzeReconciliationGaps', () => {
+	it('détecte un écart et une piste', () => {
+		const account = {
+			id: 'a1',
+			name: 'Courant',
+			type: 'checking' as const,
+			currency: 'EUR',
+			initialBalance: 0,
+			balanceSnapshots: [{ id: 's1', date: '2024-06-15', actualBalance: 100 }],
+			color: '#000',
+			createdAt: '',
+		};
+		const transactions = [{
+			id: 't1', accountId: 'a1', date: '2024-06-10', amount: 50,
+			description: 'Salaire', tags: [], type: 'income' as const,
+		}];
+		const analysis = analyzeReconciliationGaps(account, transactions);
+		expect(analysis.currentDelta).toBe(50);
+		expect(analysis.findings.some(f => f.title.includes('Écart au'))).toBe(true);
 	});
 });

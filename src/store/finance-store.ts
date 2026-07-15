@@ -2,6 +2,7 @@
 import type { FinancePluginSettings } from '../settings';
 import type {
 	Account,
+	AccountBalanceSnapshot,
 	Budget,
 	Category,
 	FinanceData,
@@ -16,6 +17,8 @@ import { generateId } from '../utils/id';
 import { getRecurringDueDates } from '../utils/recurring';
 import { removeTransactionFromNote, syncTransactionInNote, syncTransactionNote, deleteTransactionNote } from '../utils/transaction-note';
 import { computeLinkedAmount, stripInvalidLinks } from '../utils/transaction-calc';
+import { ensureVaultFolder } from '../utils/vault-folders';
+import { syncAccountActualBalance } from '../utils/reconciliation';
 
 const DATA_FILE = 'finance-data.json';
 
@@ -51,15 +54,7 @@ export class FinanceStore {
 	}
 
 	private async ensureDataFolder(): Promise<void> {
-		const folder = normalizePath(this.getSettings().dataFolder);
-		if (await this.app.vault.adapter.exists(folder)) return;
-		try {
-			await this.app.vault.createFolder(folder);
-		} catch (error) {
-			if (!(await this.app.vault.adapter.exists(folder))) {
-				throw error;
-			}
-		}
+		await ensureVaultFolder(this.app, normalizePath(this.getSettings().dataFolder));
 	}
 
 	private async backupCorruptFile(content: string): Promise<void> {
@@ -209,19 +204,23 @@ export class FinanceStore {
 
 	private async syncNoteArtifacts(tx: Transaction, previousNotePath?: string): Promise<void> {
 		const settings = this.getSettings();
-		if (previousNotePath && previousNotePath !== tx.notePath) {
-			await removeTransactionFromNote(this.app, { ...tx, notePath: previousNotePath });
+		try {
+			if (previousNotePath && previousNotePath !== tx.notePath) {
+				await removeTransactionFromNote(this.app, { ...tx, notePath: previousNotePath });
+			}
+			await syncTransactionNote(this.app, this, tx, settings);
+			await syncTransactionInNote(
+				this.app,
+				tx,
+				this.getTransactionCurrency(tx),
+				settings.dateFormat,
+				settings.syncTransactionToLinkedNote,
+				settings,
+				this.getTransactions(),
+			);
+		} catch (error) {
+			console.warn('[Finance] Synchronisation des notes ignorée', error);
 		}
-		await syncTransactionNote(this.app, this, tx, settings);
-		await syncTransactionInNote(
-			this.app,
-			tx,
-			this.getTransactionCurrency(tx),
-			settings.dateFormat,
-			settings.syncTransactionToLinkedNote,
-			settings,
-			this.getTransactions(),
-		);
 	}
 
 	getData(): FinanceData {
@@ -315,11 +314,11 @@ export class FinanceStore {
 	}
 
 	async addAccount(account: Omit<Account, 'id' | 'createdAt'>): Promise<Account> {
-		const newAccount: Account = {
+		const newAccount: Account = syncAccountActualBalance({
 			...account,
 			id: generateId(),
 			createdAt: new Date().toISOString(),
-		};
+		});
 		this.data.accounts.push(newAccount);
 		await this.save();
 		return newAccount;
@@ -328,9 +327,50 @@ export class FinanceStore {
 	async updateAccount(account: Account): Promise<void> {
 		const idx = this.data.accounts.findIndex(a => a.id === account.id);
 		if (idx >= 0) {
-			this.data.accounts[idx] = account;
+			this.data.accounts[idx] = syncAccountActualBalance(account);
 			await this.save();
 		}
+	}
+
+	async addBalanceSnapshot(
+		accountId: string,
+		snapshot: Omit<AccountBalanceSnapshot, 'id'>,
+	): Promise<AccountBalanceSnapshot> {
+		return this.upsertBalanceSnapshot(accountId, snapshot);
+	}
+
+	async upsertBalanceSnapshot(
+		accountId: string,
+		snapshot: Omit<AccountBalanceSnapshot, 'id'> & { id?: string },
+	): Promise<AccountBalanceSnapshot> {
+		const account = this.getAccount(accountId);
+		if (!account) throw new Error('Compte introuvable');
+
+		const item: AccountBalanceSnapshot = {
+			...snapshot,
+			id: snapshot.id ?? generateId(),
+		};
+		let snapshots = [...(account.balanceSnapshots ?? [])];
+		const byId = snapshots.findIndex(s => s.id === item.id);
+		if (byId >= 0) {
+			snapshots[byId] = item;
+		} else {
+			const byDate = snapshots.findIndex(s => s.date === item.date);
+			if (byDate >= 0) snapshots[byDate] = item;
+			else snapshots.push(item);
+		}
+		snapshots = snapshots.sort((a, b) => a.date.localeCompare(b.date));
+
+		await this.updateAccount({ ...account, balanceSnapshots: snapshots });
+		return item;
+	}
+
+	async deleteBalanceSnapshot(accountId: string, snapshotId: string): Promise<void> {
+		const account = this.getAccount(accountId);
+		if (!account) return;
+
+		const snapshots = (account.balanceSnapshots ?? []).filter(s => s.id !== snapshotId);
+		await this.updateAccount({ ...account, balanceSnapshots: snapshots });
 	}
 
 	async deleteAccount(id: string): Promise<void> {

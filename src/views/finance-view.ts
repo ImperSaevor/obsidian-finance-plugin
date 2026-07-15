@@ -19,6 +19,7 @@ import {
 	renderTransactionTable,
 	type TransactionListContext,
 } from './transaction-list-ui';
+import { renderReconciliationTab } from './reconciliation-renderer';
 import { createCollapse } from '../utils/collapse';
 
 export const FINANCE_VIEW_TYPE = 'finance-view';
@@ -26,6 +27,7 @@ export const FINANCE_VIEW_TYPE = 'finance-view';
 export class FinanceView extends ItemView {
 	private activeTab: FinanceTabId;
 	private selectedAccountId: string | null;
+	private overviewAccountId: string | null;
 	private noteAccountId: string | null;
 	private txFilterState: TransactionFilterState;
 	private overviewTxFilterState: TransactionFilterState;
@@ -39,6 +41,7 @@ export class FinanceView extends ItemView {
 		const ui = { ...DEFAULT_UI_STATE, ...plugin.settings.uiState };
 		this.activeTab = ui.activeTab;
 		this.selectedAccountId = ui.selectedAccountId;
+		this.overviewAccountId = ui.overviewAccountId ?? null;
 		this.noteAccountId = ui.noteAccountId;
 		this.txFilterState = { ...DEFAULT_TX_FILTER, ...ui.txFilterState };
 		this.overviewTxFilterState = { ...DEFAULT_TX_FILTER, ...ui.overviewTxFilterState };
@@ -73,6 +76,7 @@ export class FinanceView extends ItemView {
 		this.plugin.settings.uiState = {
 			activeTab: this.activeTab,
 			selectedAccountId: this.selectedAccountId,
+			overviewAccountId: this.overviewAccountId,
 			noteAccountId: this.noteAccountId,
 			txFilterState: this.txFilterState,
 			overviewTxFilterState: this.overviewTxFilterState,
@@ -126,6 +130,7 @@ export class FinanceView extends ItemView {
 			{ id: 'recurring', label: 'Récurrentes' },
 			{ id: 'budgets', label: 'Budgets' },
 			{ id: 'forecasts', label: 'Prévisions' },
+			{ id: 'reconciliation', label: 'Réconciliation' },
 			{ id: 'charts', label: 'Graphiques' },
 			{ id: 'categories', label: 'Catégories' },
 			{ id: 'note', label: 'Note' },
@@ -156,8 +161,16 @@ export class FinanceView extends ItemView {
 					content,
 					this.plugin,
 					() => this.refresh(),
+					this.overviewAccountId,
+					(id) => { this.overviewAccountId = id; this.saveUi({ overviewAccountId: id }); this.renderActiveTab(); },
 					this.overviewTxFilterState,
 					(state) => { this.overviewTxFilterState = state; this.saveUi({ overviewTxFilterState: state }); this.renderActiveTab(); },
+					(accountId) => {
+						this.selectedAccountId = accountId;
+						this.activeTab = 'reconciliation';
+						this.saveUi({ selectedAccountId: accountId, activeTab: 'reconciliation' });
+						this.render();
+					},
 				);
 				break;
 			case 'monthly':
@@ -200,6 +213,15 @@ export class FinanceView extends ItemView {
 					this.selectedAccountId,
 					(id) => { this.selectedAccountId = id; this.saveUi({ selectedAccountId: id }); this.renderActiveTab(); },
 				));
+				break;
+			case 'reconciliation':
+				renderReconciliationTab(
+					content,
+					this.plugin,
+					this.selectedAccountId,
+					(id) => { this.selectedAccountId = id; this.saveUi({ selectedAccountId: id }); this.renderActiveTab(); },
+					() => this.refresh(),
+				);
 				break;
 			case 'charts':
 				renderChartsTab(

@@ -35,29 +35,27 @@ export default class FinancePlugin extends Plugin {
 
 
 	async onload() {
-		await this.loadSettings();
-
-		this.store = new FinanceStore(this.app, () => this.settings);
-
 		try {
-			await this.store.load();
-		} catch (error) {
-			console.error('[Finance] Échec du chargement des données', error);
-			new Notice('Finance : impossible de charger les données. Vérifiez Finance/finance-data.json');
-		}
+			await this.loadSettings();
+			this.store = new FinanceStore(this.app, () => this.settings);
 
-		try {
-			const generated = await this.store.processRecurringTransactions();
-			if (generated > 0) {
-				new Notice(`${generated} transaction(s) récurrente(s) générée(s).`);
+			try {
+				await this.store.load();
+			} catch (error) {
+				console.error('[Finance] Échec du chargement des données', error);
+				new Notice('Finance : impossible de charger les données. Vérifiez Finance/finance-data.json');
 			}
-		} catch (error) {
-			console.error('[Finance] Échec génération récurrentes', error);
-		}
 
+			try {
+				const generated = await this.store.processRecurringTransactions();
+				if (generated > 0) {
+					new Notice(`${generated} transaction(s) récurrente(s) générée(s).`);
+				}
+			} catch (error) {
+				console.error('[Finance] Échec génération récurrentes', error);
+			}
 
-
-		this.registerView(FINANCE_VIEW_TYPE, (leaf) => new FinanceView(leaf, this));
+			this.registerView(FINANCE_VIEW_TYPE, (leaf) => new FinanceView(leaf, this));
 
 
 
@@ -306,7 +304,13 @@ export default class FinancePlugin extends Plugin {
 
 
 		this.addSettingTab(new FinanceSettingTab(this.app, this));
-
+		} catch (error) {
+			console.error('[Finance] Erreur au chargement du plugin', error);
+			new Notice('Finance : erreur au chargement. Consultez la console développeur.');
+			if (!this.store) {
+				this.store = new FinanceStore(this.app, () => this.settings);
+			}
+		}
 	}
 
 
