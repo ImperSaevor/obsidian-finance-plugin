@@ -7,6 +7,7 @@
 		"dev": "node esbuild.config.mjs",
 		"build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
 		"build:dev": "node esbuild.config.mjs dev-once",
+		"release:prepare": "npm run build && node scripts/prepare-release.mjs",
 		"debug": "node scripts/launch-obsidian.mjs",
 		"setup-dev": "node scripts/setup-dev-vault.mjs",
 		"sync": "node scripts/sync-to-vault.mjs",
